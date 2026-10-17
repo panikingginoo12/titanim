@@ -27,7 +27,7 @@ export const BADGES: Badge[] = [
   { id: 'kolektor', name: 'Kolektor', description: 'Have 10 plants in your garden', icon: 'albums', earned: (s) => s.plantCount >= 10 },
   { id: 'masipag', name: 'Masipag', description: 'Complete 50 quests', icon: 'ribbon', earned: (s) => s.questsDone >= 50 },
   { id: 'glow-up', name: 'Glow-up', description: 'Take 30 photos of one plant', icon: 'images', earned: (s) => s.maxPhotosOnePlant >= 30 },
-  { id: 'certified', name: 'Certified Plantito/a', description: 'Reach level 3', icon: 'medal', earned: (s) => s.level >= 3 },
+  { id: 'certified', name: 'Certified!', description: 'Reach level 3 (Plantito/a)', icon: 'medal', earned: (s) => s.level >= 3 },
 ];
 
 /** Badges earned by these stats that are not yet in `owned`. */
