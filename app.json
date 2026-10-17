@@ -31,6 +31,15 @@
       "expo-router",
       "expo-sqlite",
       [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#F4EFE3"
+        }
+      ],
+      [
         "expo-camera",
         {
           "cameraPermission": "Titanim uses the camera to take daily progress photos of your plants.",
