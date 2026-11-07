@@ -39,7 +39,10 @@ function AppStack() {
       <Stack.Screen name="plant/[id]/edit" options={{ title: 'Edit plant', presentation: 'modal' }} />
       <Stack.Screen name="plant/[id]/camera" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
       <Stack.Screen name="plant/[id]/photos" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+      <Stack.Screen name="plant/[id]/glowup" options={{ title: 'Glow-up' }} />
       <Stack.Screen name="catalog/[id]" options={{ title: '' }} />
+      <Stack.Screen name="identify" options={{ title: 'Identify a plant', presentation: 'modal' }} />
+      <Stack.Screen name="location" options={{ title: 'Weather location', presentation: 'modal' }} />
     </Stack>
   );
 }
