@@ -89,7 +89,21 @@ export default function Catalog() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScreenHeader title="Catalog" subtitle="Find your plant" />
+      <ScreenHeader
+        title="Catalog"
+        subtitle="Find your plant"
+        right={
+          <Pressable
+            onPress={() => router.push('/identify')}
+            style={styles.identify}
+            accessibilityRole="button"
+            accessibilityLabel="Identify a plant from a photo"
+          >
+            <Icon name="scan-outline" size={20} color={colors.onPrimary} />
+            <Text style={styles.identifyText}>Identify</Text>
+          </Pressable>
+        }
+      />
       <View style={styles.searchWrap}>
         <Icon name="search" size={18} color={colors.textMuted} />
         <TextInput
@@ -151,6 +165,16 @@ export default function Catalog() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
+  identify: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 44,
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+  },
+  identifyText: { color: colors.onPrimary, fontWeight: '700', fontSize: 15 },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',

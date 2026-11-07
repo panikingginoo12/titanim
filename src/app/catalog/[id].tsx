@@ -30,7 +30,7 @@ export default function SpeciesDetail() {
   const species = getSpecies(params.id);
 
   if (!species) {
-    // A GBIF result: names only, no care guide.
+    // From GBIF search or Pl@ntNet identification: names only, no care guide.
     const name = params.name ?? 'Unknown plant';
     return (
       <ScrollView contentContainerStyle={styles.content}>
@@ -41,8 +41,8 @@ export default function SpeciesDetail() {
         <Card style={styles.notice}>
           <Icon name="information-circle-outline" size={20} color={colors.water} />
           <Text style={[type.small, { flex: 1 }]}>
-            This plant comes from GBIF, an open species database, so Titanim does not have a care guide for it yet. You
-            will get general quests and can set your own watering schedule.
+            Titanim does not have a care guide for this plant yet. You will get general quests and can set your own
+            watering schedule.
           </Text>
         </Card>
         <Button
