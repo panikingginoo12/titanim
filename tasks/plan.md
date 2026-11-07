@@ -1,356 +1,326 @@
-# Implementation Plan: Plantito/Plantita App (₱0 build)
+# Implementation Plan: Pa-ampon — seed & plant swap (Phase 5)
+
+> Earlier phases (MVP + Phase 4) are in `tasks/plan-mvp.md`.
 
 ## Overview
 
-A mobile app for Filipino plant hobbyists ("plantitos" and "plantitas"). Users add plants to their garden, take a daily progress photo of each plant, browse a plant catalog, and get daily care quests. A game layer (XP, streaks, badges, titles) and weather-aware tips make daily care feel like play.
+Let plantitos and plantitas show what seeds, cuttings and plants they can share, find people nearby who have what they want, and arrange swaps or giveaways ("pa-ampon") that end in a meetup.
 
-**Constraint: zero running cost.** No paid APIs, no paid hosting, no server to keep alive. Everything runs on the phone, and only free, keyless (or free-key) public APIs are called.
+Three user-facing pieces:
+1. **Binhi Box (my listings):** seeds, cuttings, pups and plants I'm willing to share, visible to other users.
+2. **Malapit sa Akin (near me):** people within a few km and their available listings, with no exact location ever exposed.
+3. **Palitan (trading):** request → accept → chat → meet → mark done → thumbs-up.
 
-## Requested features
+This is the first feature that needs a server. My Garden, photos, quests and XP stay on the phone exactly as today; only listings, profiles, trades and chat go online.
 
-1. **Daily progress log** — camera capture per plant, timeline of photos.
-2. **Plant list** — searchable catalog backed by an open plant API.
-3. **Daily quests** — small care tasks for growing each plant.
+## Hard rules (decided up front)
 
-## Added features (all ₱0)
-
-| Feature | Why it's fun | Effort |
-|---|---|---|
-| **Ghost overlay camera** | Last photo shows faintly over the viewfinder so every shot lines up | S |
-| **Before–after slider + growth slideshow** | Swipe Day 1 vs today, or auto-play every photo in order | S |
-| **XP, levels, Filipino titles** | Baguhan → Plantito/Plantita → Tito/Tita ng Halaman → Hari/Reyna ng Halamanan | S |
-| **Dilig streaks** | Daily streak with one free "streak freeze" per week | S |
-| **Badges** | "Unang Usbong", "Bagyo Survivor", "7-day Dilig", "Collector: 10 plants" | S |
-| **Plant names and moods** | Each plant has a nickname and looks happy, thirsty, or sad based on care | S |
-| **Local reminders** | Scheduled on the phone itself, no push server | S |
-| **Weather-aware quests** | "Uulan bukas — skip watering", "Bring pots inside" during habagat/typhoon season | M |
-| **Snap-to-identify** | Point the camera at an unknown plant and get the species | M |
-| **Backup and restore** | Export garden + photos as one file to Drive/Files via the share sheet | M |
-| **Taglish copy** | Familiar, friendly tone | S |
-
-**Deferred (needs a server):** cloud sync across devices, Halamanan feed, Pa-ampon plant swap, leaderboards, any 3D features.
-
-## Free data sources
-
-| Source | What it gives | Limits / terms | Use it for |
-|---|---|---|---|
-| **Bundled care data** (our own JSON) | Care profiles for ~50 common PH plants | We write it; images from Wikimedia Commons with attribution | Quests and plant details |
-| **GBIF Species API** | Taxonomy, scientific and vernacular names | Free, no key, open data | Catalog search beyond the bundled 50 |
-| **Pl@ntNet API** | Identify a plant from a photo | Free up to 500 IDs/day, attribution required, one free account per person | Snap-to-identify |
-| **Open-Meteo** | Weather forecast | Free, no key, CC BY 4.0 (attribution) | Weather-aware quests |
-| ~~Perenual~~ | Care data | Free tier non-commercial, 100 req/day shared by all users, care guides paid | Dropped |
-| ~~Trefle~~ | — | Shut down | Dropped |
+| Rule | Why |
+|---|---|
+| **No exact locations, ever.** Server snaps location to a ~1 km grid cell; other users only see a distance bucket (< 1 km, 1–3, 3–5, 5–10 km) and a place label the owner typed (e.g. "Brgy. Malanday, Marikina"). | Rare plants get stolen; people get stalked. A grid cell is the most the database ever stores. |
+| **Opt-in.** Nothing is visible until the user turns on "Ipakita ako sa Malapit sa Akin". | Data Privacy Act (RA 10173): consent for location. |
+| **Swaps and gifts only, no money in v1.** | No payments to build, no BIR/DTI questions, and less fuel for the plant-poaching market. |
+| **Meetups only, no shipping in v1.** | Moving plants between islands needs Bureau of Plant Industry permits. |
+| **18+ to trade.** Browsing is open; requesting/accepting trades and chat need an 18+ confirmation. | Trades end in meeting a stranger. |
+| **No wild-collected or threatened plants.** Every listing confirms "propagated, not taken from the wild"; names on a watch list (Waling-waling, pitcher plants, Kris/Green Velvet Alocasia, etc.) show a warning and get flagged for review. | RA 9147 covers plants. DENR has warned plantitos that selling or collecting wild threatened species carries jail time and fines up to ₱1M. |
+| **Block and report exist before trading ships.** | Basic safety for a stranger-to-stranger feature. |
 
 ## Architecture decisions
 
-- **Local-first, no backend for MVP.** All data lives on the phone. Nothing to host, nothing that pauses or bills. (Supabase's free plan, for example, pauses projects after a week of inactivity and caps file storage at 1 GB — too small for daily photos from many users.)
-- **Expo (React Native) + TypeScript.**
-  - `expo-sqlite` for plants, photos metadata, quests, XP, badges.
-  - `expo-camera` + `expo-image-manipulator` to capture and compress (~1080px JPEG).
-  - `expo-file-system` to store photos in the app's own folder; optional "also save to Gallery".
-  - `expo-notifications` **local** scheduled notifications.
-  - `expo-location` (coarse) or manual city pick for weather.
-- **Care data shipped inside the app** as versioned JSON. Updating it means an app update — free and simple.
-- **Quest engine runs on the device.** On first open each day, the app generates that day's quests from care profiles, last-care dates, and the cached forecast.
-- **Game state is local.** XP and streaks could be cheated, but with no leaderboards that's harmless.
-- **Builds:** local builds (free, unlimited) or EAS Build Free plan (up to 15 Android builds/month, low-priority queue).
-- **Android first.** iOS needs Apple's $99/year developer membership.
+- **Backend: Supabase Free.** Postgres + PostGIS (nearby queries), Auth, Storage (listing photos), Realtime (chat). All access goes through Row Level Security and a few `SECURITY DEFINER` RPCs.
+  - Free limits that matter: 500 MB database, 1 GB file storage, 5 GB egress/month, 50k MAU, 2 projects. A free project **pauses after a week with no requests** and must be restored from the dashboard — only an issue during development.
+- **Login: Google, via Supabase OAuth in the browser.**
+  - Email codes are not ₱0: Supabase's built-in mailer is capped at 2 emails/hour, and a free SMTP plan like Resend's (100/day) needs a verified domain you'd have to buy.
+  - Google sign-in through the system browser works in Expo Go for testing; the native Google button needs a development build later.
+  - Browsing nearby listings can start from a Supabase **anonymous session** (no login); creating listings and trading require linking a Google account. Anonymous sign-ins need CAPTCHA (Turnstile, free) to stop database spam.
+- **Location:** reuse the weather place (already rounded to ~1 km on the phone). The server snaps again to its own grid so a modified client can't store anything more precise. Nearby search is an RPC that returns listings plus a distance bucket, never coordinates; max radius 10 km.
+- **Photos:** max 3 per listing, compressed to ~800 px (~80 KB) plus a 300 px thumbnail for lists. Keeps 1 GB storage and 5 GB/month egress workable for an early community.
+- **Chat:** one thread per accepted trade, Supabase Realtime with a polling fallback. No chat before a trade is accepted.
+- **Notifications:** v1 shows badges when the app opens. Push (new request, new message) comes later: it needs a development build or APK (Expo Go dropped remote push on Android) plus an Edge Function calling Expo's free push service.
+- **Schema lives in the repo** as Supabase migrations (`supabase/migrations`), with RLS tests.
 
-## Distribution cost (the one thing that isn't ₱0)
+## Data model (server)
 
-- **Sideloaded APK for testers:** ₱0.
-- **Google Play:** one-time US$25 registration, no annual renewal. New personal accounts must run a closed test with at least 12 testers for 14 continuous days before going to production.
-- **App Store:** $99/year — skipped for now.
+- `profiles` — `id` (= auth user), `display_name`, `area_label`, `cell` (PostGIS point, snapped), `nearby_visible`, `adult_confirmed_at`, `trades_completed`, `thumbs_up`, `created_at`
+- `listings` — `id`, `owner_id`, `kind` (seed / cutting / pup / bulb / plant), `title`, `species_id` (bundled id, optional), `scientific_name`, `quantity`, `note`, `wants` ("kapalit" text), `gift_ok`, `photo_paths[]`, `status` (available / reserved / traded / hidden), `not_wild_confirmed`, timestamps
+- `trades` — `id`, `requester_id`, `owner_id`, `listing_id` (what's asked for), `offered_listing_ids[]` (empty = asking as pa-ampon/gift), `message`, `status` (requested / accepted / declined / cancelled / completed), `requester_done`, `owner_done`, timestamps
+- `messages` — `id`, `trade_id`, `sender_id`, `body`, `created_at`
+- `ratings` — `trade_id`, `rater_id`, `ratee_id`, `thumbs_up`
+- `blocks` — `blocker_id`, `blocked_id`
+- `reports` — `id`, `reporter_id`, `target_user_id`, `listing_id`, `reason`, `status`, `created_at`
 
-## Core data model (on-device SQLite)
-
-- `profile` — display name, plantito/plantita, xp, level, city/lat-lon, reminder time
-- `species` — bundled + cached GBIF results: id, scientific name, common names (EN/Tagalog), image, attribution
-- `care_profiles` — bundled: species_id, water every N days, light, humidity, fertilize every N days, toxic to pets, tips
-- `user_plants` — nickname, species_id (nullable), indoor/outdoor, acquired date, last watered, last fertilized
-- `progress_photos` — user_plant_id, date, local file path, note
-- `quest_templates` — bundled: type, conditions, XP reward, Taglish copy
-- `daily_quests` — date, user_plant_id, template, status
-- `badges`, `streak`
+RPCs: `set_my_cell(lat, lon)`, `nearby_listings(radius_km, kind, query)`, `request_trade(...)`, `respond_trade(trade_id, accept)`, `cancel_trade(trade_id)`, `mark_trade_done(trade_id)`. Trade status changes only happen inside these RPCs, never by direct UPDATE.
 
 ## Dependency graph
 
 ```
-Spikes (APIs, camera + local storage)
+Spikes: Supabase + Google login in Expo Go · PostGIS nearby RPC
    │
-Scaffold + local DB + onboarding
+Supabase setup + client + migrations
    │
-user_plants (manual add) ─────────────┐
-   │                                  │
-Catalog (bundled + GBIF)              Daily photo ── Timeline ── Ghost overlay ── Before/after
-   │                                  │
-Add from catalog                      │
-   │                                  │
-Quest engine (on device) ─────────────┘
+Sign in + profile (name, area, 18+, consent)
    │
-Complete quest → XP / streaks → badges / titles
+Binhi Box: my listings + photos ──────── "Offer from My Garden" shortcut
    │
-Local reminders · Weather quests · Snap-to-identify · Plant moods · Backup
+Other users' profiles (public listings) ─┐
+   │                                     │
+Location opt-in + snapped cell           │
+   │                                     │
+Malapit sa Akin feed ────────────────────┤
+   │                                     │
+Block + report ──────────────────────────┘
+   │
+Trade request + inbox
+   │
+Accept / decline / cancel (server state machine)
+   │
+Trade chat ── Mark done + thumbs-up
+   │
+Launch: account deletion, privacy policy, moderation, push
 ```
 
 ## Task list
 
-### Phase 0: Spikes (fail fast)
-- [ ] Task 0.1: Free API spike
-- [ ] Task 0.2: Camera and local photo storage spike
+### Phase 5.0: Spikes
+- [ ] 5.0a Supabase + Google login works in Expo Go
+- [ ] 5.0b Nearby query with snapped cells and distance buckets
 
-### Checkpoint 0
-- [ ] GBIF/Pl@ntNet/Open-Meteo confirmed usable at ₱0
-- [ ] Capture → compress → save → display works offline on a real Android phone
-- [ ] Human review of stack
+### Checkpoint 5.0
+- [ ] Login round-trip works on your phone in Expo Go
+- [ ] Nearby RPC returns buckets only, verified with SQL
+- [ ] Human review: confirm rules, login choice and open questions
 
-### Phase 1: Foundation
-- [ ] Task 1: Scaffold, local database, onboarding
-- [ ] Task 2: Add a plant manually and see "My Garden"
+### Phase 5.1: Accounts and Binhi Box
+- [ ] T1 Supabase project, client, migrations in repo
+- [ ] T2 Sign in with Google + profile setup
+- [ ] T3 Binhi Box: add/edit/hide listings with photos
+- [ ] T4 Offer from My Garden shortcut
+- [ ] T5 View another user's profile and public listings
 
-### Checkpoint 1
-- [ ] Builds clean, tests pass, data survives app restart
+### Checkpoint 5.1
+- [ ] Two test accounts: A's listings visible to B; B can't edit A's; hidden listings invisible
+- [ ] RLS tests pass
 
-### Phase 2: Core features
-- [ ] Task 3: Catalog search (bundled + GBIF)
-- [ ] Task 4: Plant detail and add from catalog
-- [ ] Task 5: Daily progress photo
-- [ ] Task 6: Photo timeline per plant
-- [ ] Task 7: On-device quest engine
-- [ ] Task 8: Complete a quest (Today screen)
+### Phase 5.2: Malapit sa Akin
+- [ ] T6 Location opt-in + snapped cell
+- [ ] T7 Nearby feed with radius, type and name filters
+- [ ] T8 Block and report
 
-### Checkpoint 2
-- [ ] End-to-end offline: add plant → get quests → take photo → complete quest
-- [ ] Human review before game layer
+### Checkpoint 5.2
+- [ ] Accounts placed in different cells see correct buckets; blocked users disappear both ways
+- [ ] No API response contains coordinates
 
-### Phase 3: Fun layer
-- [ ] Task 9: XP, levels, Filipino titles
-- [ ] Task 10: Dilig streaks
-- [ ] Task 11: Badges
-- [ ] Task 12: Ghost overlay camera
-- [ ] Task 13: Local care reminders
+### Phase 5.3: Palitan
+- [ ] T9 Trade request + inbox
+- [ ] T10 Accept / decline / cancel with listing reservation
+- [ ] T11 Trade chat
+- [ ] T12 Mark done + thumbs-up
 
-### Checkpoint 3 (MVP)
-- [ ] All MVP criteria met on 2+ Android phones
-- [ ] APK shared with testers
+### Checkpoint 5.3 (closed beta)
+- [ ] Full swap between two real phones, end to end
+- [ ] 5–10 testers in one city for a week
 
-### Phase 4: Post-MVP (still ₱0)
-- [ ] Task 14: Weather-aware quests
-- [ ] Task 15: Snap-to-identify
-- [ ] Task 16: Before–after slider and growth slideshow
-- [ ] Task 17: Plant moods
-- [ ] Task 18: Backup and restore
+### Phase 5.4: Before public launch
+- [ ] T13 Account and data deletion (in app + web page)
+- [ ] T14 Privacy policy, terms, safety tips, Play data-safety form
+- [ ] T15 Moderation: report queue, auto-hide, wild-plant watch list
+- [ ] T16 Push notifications (development build + Edge Function)
 
 ---
 
 ## Task details
 
-### Task 0.1: Free API spike
-**Description:** From a throwaway script, hit GBIF species search, Pl@ntNet identify (free key), and Open-Meteo. Check GBIF coverage and Tagalog vernacular names for 20 common PH plants, response sizes, and attribution requirements.
+### 5.0a Supabase + Google login spike
+**Description:** Create a Supabase project, enable Google provider (Google Cloud OAuth client, free) and anonymous sign-ins. Throwaway screen: anonymous session → "Link Google" via `expo-web-browser` → session persists after restart.
 **Acceptance criteria:**
-- [ ] Coverage table for 20 PH plants
-- [ ] Attribution text list for Pl@ntNet, Open-Meteo, Wikimedia images
-**Verification:** Review `docs/api-spike.md`
+- [ ] Works in Expo Go over tunnel; redirect URL handling documented
+- [ ] Anonymous user converts to Google user without losing its id
+**Verification:** Manual on your phone; note findings in `docs/supabase-spike.md`
 **Dependencies:** None
-**Files:** `scripts/api-spike.ts`, `docs/api-spike.md`
 **Scope:** S
 
-### Task 0.2: Camera and local photo storage spike
-**Description:** Minimal Expo screen: capture, compress, save to app folder, list and display. Measure file size and storage after 100 photos.
+### 5.0b Nearby query spike
+**Description:** Local SQL: PostGIS points snapped to a ~1 km grid, `nearby_listings` returning distance buckets. Measure query time with 10k fake listings.
 **Acceptance criteria:**
-- [ ] Each photo ≤ 300 KB
-- [ ] Works in airplane mode
-**Verification:** Manual on a physical Android phone
+- [ ] Output contains bucket labels, never lat/lon
+- [ ] < 100 ms for 10 km radius with 10k listings (GiST index)
+**Verification:** SQL script + EXPLAIN output in `docs/supabase-spike.md`
 **Dependencies:** None
-**Files:** `spikes/camera/*`
 **Scope:** S
 
-### Task 1: Scaffold, local database, onboarding
-**Description:** Expo + TypeScript + Expo Router, `expo-sqlite` with a migration runner, onboarding screens (name, Plantito or Plantita, city).
+### T1 Supabase project, client, migrations
+**Description:** `supabase/` folder with migrations for all tables, RLS on every table, `src/lib/supabase.ts` client (session stored with expo-secure-store / AsyncStorage per Supabase's Expo guide), env vars in `.env.local`.
 **Acceptance criteria:**
-- [ ] Migrations run on first launch and on upgrade
-- [ ] Onboarding shown once; profile saved locally
-**Verification:** `npm test` (migration tests); manual fresh install
-**Dependencies:** Checkpoint 0
-**Files:** `app/_layout.tsx`, `app/onboarding/*`, `db/migrations/*`, `db/client.ts`
+- [ ] `supabase db reset` builds the schema from scratch
+- [ ] Every table has RLS enabled; anon key can't read private columns
+**Verification:** RLS test file (pgTAP via `supabase test db`); `npm run typecheck`
+**Dependencies:** Checkpoint 5.0
+**Files:** `supabase/migrations/*`, `supabase/tests/*`, `src/lib/supabase.ts`, `.env.example`
 **Scope:** M
 
-### Task 2: Add a plant manually and see "My Garden"
-**Description:** `user_plants` table + form (nickname, indoor/outdoor, acquired date, cover photo) + My Garden grid. Edit and delete.
+### T2 Sign in + profile setup
+**Description:** "Palitan" tab (or Profile section) → sign in with Google → profile form: display name (prefilled from local settings), area label, 18+ confirmation, consent to terms and location use.
 **Acceptance criteria:**
-- [ ] Plant persists after restart; deleting removes its photos from disk
-**Verification:** Unit test for form validation and delete cleanup; manual
-**Dependencies:** Task 1
-**Files:** `db/migrations/002_user_plants.ts`, `app/garden/*`, `components/PlantCard.tsx`
+- [ ] Can't create listings or trade without 18+ and consent
+- [ ] Signing out keeps My Garden untouched
+**Verification:** Manual; RLS test that unconfirmed profiles can't insert trades
+**Dependencies:** T1
+**Files:** `src/app/(tabs)/palitan.tsx`, `src/app/account/*`, `supabase/migrations/*profiles*`
 **Scope:** M
 
-### Task 3: Catalog search (bundled + GBIF)
-**Description:** Bundle `species.json` and `care_profiles.json` for ~50 PH plants. Search the bundled list first (works offline); when online, also query GBIF and cache results.
+### T3 Binhi Box: my listings
+**Description:** Add/edit/hide listings: kind, plant (pick from catalog or free text), quantity, note, "kapalit" wants, gift OK, up to 3 photos (compressed + thumbnail, uploaded to Storage under `listings/<user>/<id>/`), "propagated, not from the wild" checkbox.
 **Acceptance criteria:**
-- [ ] "monstera" and "malunggay" return bundled results offline
-- [ ] GBIF results marked "No care guide yet"
-**Verification:** Unit tests for search merge; manual offline/online
-**Dependencies:** Task 1, Task 0.1
-**Files:** `data/species.json`, `data/care_profiles.json`, `lib/gbif.ts`, `app/catalog/*`
+- [ ] Listing appears in my Binhi Box after app restart (from server)
+- [ ] Photos ≤ 120 KB, thumbnails ≤ 30 KB; deleting a listing deletes its photos
+- [ ] Max 30 active listings per user (enforced server-side)
+**Verification:** Manual; storage policy test (users write only their own folder)
+**Dependencies:** T2
+**Files:** `src/app/listings/*`, `src/lib/listings.ts`, `supabase/migrations/*listings*`
 **Scope:** M
 
-### Task 4: Plant detail and add from catalog
-**Description:** Detail screen (names, light, water, toxicity, tips, image credit) with "Add to My Garden" pre-filling Task 2's form.
+### T4 Offer from My Garden
+**Description:** Button on a plant's page: "Mag-alok ng cutting/binhi" → listing form prefilled with species, nickname and latest photo.
 **Acceptance criteria:**
-- [ ] Added plant linked to species and care profile
-**Verification:** Manual; DB check
-**Dependencies:** Tasks 2, 3
-**Files:** `app/catalog/[id].tsx`, `app/garden/new.tsx`
-**Scope:** S
-
-### Task 5: Daily progress photo
-**Description:** From a plant's page, capture, compress, add note, save locally. One official photo per plant per day (retake replaces). Optional "Save a copy to Gallery" setting.
-**Acceptance criteria:**
-- [ ] Date bucketed by Asia/Manila local day
-- [ ] Replaced photo's old file deleted
-**Verification:** Unit test for date bucketing; manual
-**Dependencies:** Task 2, Task 0.2
-**Files:** `app/plant/[id]/camera.tsx`, `lib/photos.ts`
-**Scope:** M
-
-### Task 6: Photo timeline per plant
-**Description:** Timeline with "Day N" labels and notes; full-screen swipe viewer.
-**Acceptance criteria:**
-- [ ] Smooth scrolling with 100+ photos (thumbnails generated on save)
-**Verification:** Manual with seeded photos
-**Dependencies:** Task 5
-**Files:** `app/plant/[id]/timeline.tsx`, `components/PhotoViewer.tsx`
-**Scope:** S
-
-### Task 7: On-device quest engine
-**Description:** Pure-function rule engine: (care profile, last care dates, today, forecast?) → quests. Runs on first app open each day; idempotent. Plants without a care profile get generic quests. Max 3 quests per plant per day.
-**Acceptance criteria:**
-- [ ] Water quest only when due
-- [ ] Re-opening the app the same day doesn't duplicate quests
-**Verification:** Unit tests with fixed dates
-**Dependencies:** Tasks 4, 5
-**Files:** `lib/quests/engine.ts`, `data/quest_templates.json`, `db/migrations/003_quests.ts`
-**Scope:** M
-
-### Task 8: Complete a quest (Today screen)
-**Description:** Today tab lists quests by plant. Tap to complete, or "skip" with no penalty. Photo quests open the camera and complete on save. Water/fertilize quests update last-care dates.
-**Acceptance criteria:**
-- [ ] Completion reflected in next day's quests
-**Verification:** Integration test on engine + DB; manual
-**Dependencies:** Task 7
-**Files:** `app/(tabs)/today.tsx`, `lib/quests/complete.ts`
-**Scope:** M
-
-### Task 9: XP, levels, Filipino titles
-**Description:** XP per quest; level thresholds map to titles; level-up animation.
-**Acceptance criteria:**
-- [ ] Title changes exactly at thresholds
-**Verification:** Unit tests; manual animation
-**Dependencies:** Task 8
-**Files:** `lib/game/xp.ts`, `components/LevelUpModal.tsx`
-**Scope:** S
-
-### Task 10: Dilig streaks
-**Description:** Streak = days with ≥1 quest done; one freeze per week.
-**Acceptance criteria:**
-- [ ] Correct across midnight and after skipping days
-**Verification:** Unit tests with date fixtures
-**Dependencies:** Task 8
-**Files:** `lib/game/streak.ts`, `components/StreakFlame.tsx`
-**Scope:** S
-
-### Task 11: Badges
-**Description:** Rules evaluated after quest completion and photo save; badge shelf on profile.
-**Acceptance criteria:**
-- [ ] Each badge awarded once
-**Verification:** Unit test per rule
-**Dependencies:** Tasks 9, 10
-**Files:** `lib/game/badges.ts`, `data/badges.json`, `app/profile/badges.tsx`
-**Scope:** M
-
-### Task 12: Ghost overlay camera
-**Description:** Previous photo at ~30% opacity over the viewfinder; toggle.
-**Acceptance criteria:**
-- [ ] Same aspect ratio; toggle remembered
+- [ ] Prefill correct for bundled and GBIF/unknown plants
 **Verification:** Manual
-**Dependencies:** Task 5
-**Files:** `app/plant/[id]/camera.tsx`
+**Dependencies:** T3
+**Files:** `src/app/plant/[id]/index.tsx`, `src/app/listings/new.tsx`
 **Scope:** S
 
-### Task 13: Local care reminders
-**Description:** Daily local notification at the user's chosen time with today's quest count; deep-links to Today. Rescheduled when settings change.
+### T5 Other user's profile
+**Description:** Public profile screen: name, area label, trades completed, thumbs-up, available listings. Reached from nearby feed, trades, and a "share my Binhi Box" image (share sheet, no deep link needed).
 **Acceptance criteria:**
-- [ ] Fires with app closed; can be turned off
-**Verification:** Manual with a near-future test time
-**Dependencies:** Task 7
-**Files:** `lib/notifications.ts`, `app/settings.tsx`
+- [ ] Hidden/traded listings not shown; no location fields in the response
+**Verification:** Two accounts on two phones (or phone + web preview)
+**Dependencies:** T3
+**Files:** `src/app/u/[id].tsx`
 **Scope:** S
 
-### Task 14: Weather-aware quests
-**Description:** Fetch Open-Meteo forecast once a day (cached). Engine rules: rain → skip watering outdoor plants; strong wind → bring pots in; heat → water early. Show Open-Meteo attribution.
+### T6 Location opt-in + snapped cell
+**Description:** Toggle "Ipakita ako sa Malapit sa Akin" with plain-language consent. Uses the weather place (or asks for it); calls `set_my_cell`, which snaps server-side. Turning it off clears the cell.
 **Acceptance criteria:**
-- [ ] Indoor plants unaffected; offline falls back to normal quests
-**Verification:** Engine unit tests with mocked forecasts
-**Dependencies:** Task 7
-**Files:** `lib/weather.ts`, `lib/quests/rules/weather.ts`
+- [ ] Stored cell is grid-snapped even if the client sends precise coordinates
+- [ ] Off = invisible in nearby results immediately
+**Verification:** SQL test on `set_my_cell`; manual toggle test
+**Dependencies:** T2
+**Scope:** S
+
+### T7 Malapit sa Akin feed
+**Description:** List of nearby available listings grouped by person: thumbnail, plant, kind, distance bucket, area label, "kapalit". Filters: radius (1/3/5/10 km), kind, plant name. Pull to refresh, paged.
+**Acceptance criteria:**
+- [ ] Results sorted by distance bucket then newest
+- [ ] Works with anonymous session for browsing; "Request" asks to sign in
+- [ ] Response payload contains no coordinates (checked in test)
+**Verification:** SQL tests for buckets and filters; manual with 2–3 accounts in different cells
+**Dependencies:** T5, T6
+**Files:** `src/app/(tabs)/palitan.tsx`, `src/lib/nearby.ts`, `supabase/migrations/*nearby*`
 **Scope:** M
 
-### Task 15: Snap-to-identify
-**Description:** Camera → Pl@ntNet → top 3 matches → link to bundled species or GBIF → "Add to My Garden". Per-device daily cap (e.g. 5/day) to protect the shared 500/day quota. Required Pl@ntNet attribution shown.
+### T8 Block and report
+**Description:** Block from profile or chat (hides both ways everywhere). Report a user or listing with a reason.
 **Acceptance criteria:**
-- [ ] Graceful message when quota or network is unavailable
-**Verification:** Manual with 10 known plants; unit test for cap
-**Dependencies:** Tasks 3, 4
-**Files:** `lib/plantnet.ts`, `app/identify.tsx`
+- [ ] Blocked users never appear in nearby, profiles, trades or chat for either side
+- [ ] A user can't report the same listing twice
+**Verification:** RLS tests for block visibility
+**Dependencies:** T7
+**Scope:** S
+
+### T9 Trade request + inbox
+**Description:** On a listing: "Makipagpalit" → choose what to offer from my Binhi Box, or ask as pa-ampon if the owner allows gifts; short message. Inbox with Incoming / Outgoing tabs and status chips; badge count on the tab.
+**Acceptance criteria:**
+- [ ] Can't request my own listing, a non-available listing, or from someone who blocked me
+- [ ] Max 5 open outgoing requests per user (anti-spam)
+**Verification:** SQL tests on `request_trade`; manual
+**Dependencies:** T8
+**Files:** `src/app/trades/*`, `src/lib/trades.ts`, `supabase/migrations/*trades*`
 **Scope:** M
 
-### Task 16: Before–after slider and growth slideshow
-**Description:** Drag slider comparing Day 1 and latest photo; auto-play slideshow of all photos. Share a side-by-side image via the share sheet.
+### T10 Accept / decline / cancel
+**Description:** Owner accepts or declines; either side can cancel before completion. Accepting reserves the requested and offered listings and auto-declines other pending requests for the same listing.
 **Acceptance criteria:**
-- [ ] Shared image includes plant name and "Day 1 → Day N"
-**Verification:** Manual
-**Dependencies:** Task 6
-**Files:** `app/plant/[id]/glowup.tsx`, `components/BeforeAfter.tsx`
+- [ ] Only valid transitions succeed (requested→accepted/declined/cancelled, accepted→completed/cancelled)
+- [ ] Cancelling an accepted trade frees reserved listings
+**Verification:** SQL state-machine tests covering every transition
+**Dependencies:** T9
+**Scope:** M
+
+### T11 Trade chat
+**Description:** Chat per accepted trade (Realtime, with polling fallback). Pinned safety card: meet in a public place, daytime, bring a friend, don't share your home address. Block/report from chat.
+**Acceptance criteria:**
+- [ ] Only the two traders can read/send; chat read-only after completion or cancel
+- [ ] Messages ≤ 1,000 chars; links and phone numbers allowed (their choice) with a reminder
+**Verification:** RLS tests; two phones
+**Dependencies:** T10
+**Files:** `src/app/trades/[id].tsx`, `src/lib/chat.ts`
+**Scope:** M
+
+### T12 Mark done + thumbs-up
+**Description:** Both sides tap "Tapos na ang palitan"; trade completes when both confirm. Then an optional thumbs-up. Profile shows completed trades and thumbs-up count. A new badge "Unang Palitan" in the local game layer.
+**Acceptance criteria:**
+- [ ] Completed only after both confirm; listings marked traded (or quantity reduced)
+- [ ] One rating per person per trade
+**Verification:** SQL tests; manual
+**Dependencies:** T11
 **Scope:** S
 
-### Task 17: Plant moods
-**Description:** Avatar state (happy / thirsty / neglected) from overdue quests.
+### T13 Account and data deletion
+**Description:** "Delete my Palitan account" in app removes profile, listings, photos, chats and ratings (trades kept anonymized for the other party). Public web page with deletion instructions (GitHub Pages, free) — required by Google Play for apps with accounts.
 **Acceptance criteria:**
-- [ ] Updates immediately after completing a quest
-**Verification:** Unit tests
-**Dependencies:** Task 8
-**Files:** `lib/plantMood.ts`, `components/PlantAvatar.tsx`
+- [ ] After deletion nothing identifies the user; My Garden on the phone unaffected
+**Verification:** SQL test; manual
+**Dependencies:** T12
+**Scope:** M
+
+### T14 Privacy policy, terms, safety
+**Description:** Plain-language privacy policy (RA 10173), terms (swaps/gifts only, no wild plants, 18+, meetups at your own risk), safety tips page; link from sign-up and Profile. Fill in Play Console data-safety form.
+**Acceptance criteria:**
+- [ ] Shown and accepted during sign-up; versioned so changes can re-ask
+**Verification:** Review by you before launch
+**Dependencies:** T2
 **Scope:** S
 
-### Task 18: Backup and restore
-**Description:** Export DB + photos as one `.zip` via the share sheet (to Google Drive, Files, etc.); import restores it on a new phone.
+### T15 Moderation
+**Description:** Watch list of protected plant names that triggers a warning and a review flag; listing auto-hidden after 3 reports from different users; a simple review view (SQL views in Supabase dashboard).
 **Acceptance criteria:**
-- [ ] Round-trip export → fresh install → import restores everything
-**Verification:** Manual on two devices
-**Dependencies:** Tasks 5, 11
-**Files:** `lib/backup.ts`, `app/settings/backup.tsx`
+- [ ] Watch-listed names are flagged regardless of capitalization/spacing
+- [ ] Auto-hide works and owner sees why
+**Verification:** SQL tests
+**Dependencies:** T8
+**Scope:** M
+
+### T16 Push notifications
+**Description:** Move testing to a development build/APK; register Expo push token; Edge Function on new trade request, accept, and message sends via Expo's push service.
+**Acceptance criteria:**
+- [ ] Push arrives within a minute; tapping opens the trade
+**Verification:** Two phones with the APK
+**Dependencies:** T11, development build
 **Scope:** M
 
 ## Parallelization
 
-- After Checkpoint 1: catalog (Tasks 3–4) and photos (Tasks 5–6) can run in parallel.
-- After Task 8: Tasks 9–10, 12, 13 are independent.
-- Writing `care_profiles.json` and Taglish quest copy can start on day one.
+- 5.0a and 5.0b are independent.
+- T4 and T5 can run in parallel after T3.
+- T13–T15 can start once their dependencies land; T14 can be drafted any time.
 
 ## Risks and mitigations
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Phone lost or app uninstalled → photos gone | High | "Save a copy to Gallery" option (Task 5), backup/restore (Task 18), clear warning in onboarding |
-| Wrong care advice | Med | Source each care profile; "tips, not guarantees"; user can edit watering interval per plant |
-| Pl@ntNet key is inside the app and can be extracted | Low (worst case: quota used up, still ₱0) | Per-device cap; move behind a free proxy later if abused |
-| Pl@ntNet 500/day shared by all users | Med once popular | Per-device cap; feature is optional |
-| Phone storage fills up | Low | Compress to ~1080px, one photo per plant per day, show storage used |
-| Quests feel like chores | Med | Max 3/plant/day, skip with no penalty, streak freeze |
-| Image licensing for bundled plant photos | Low | Wikimedia Commons only, store and show attribution |
+| Location leak or plant theft | High | Grid snap on server, buckets only, opt-in, no address fields, safety card |
+| Scams, harassment at meetups | High | 18+, block/report, ratings, public-place guidance, chat only after accept |
+| Listing wild/threatened plants (RA 9147) | High | Not-from-the-wild confirmation, watch list, reports, auto-hide |
+| Free-tier limits (1 GB storage, 5 GB egress) | Med | 3 photos/listing, thumbnails in lists, 30 listings/user; watch usage monthly |
+| Free project pauses after a week idle | Low (dev only) | Restore from dashboard; not an issue once people use it |
+| Spam accounts | Med | Turnstile on anonymous sign-in; Google required to list/trade; request limits |
+| Empty map at launch ("no one near me") | High | Launch city by city with a seeded community (plant groups on Facebook), invite link |
+| Anonymous browsing abused to scrape | Low | Rate-limited RPC, buckets only, small pages |
 
 ## Open questions
 
-1. Share as APK to testers first, or pay the one-time US$25 for Google Play?
-2. English, Tagalog, or Taglish as the default UI language?
-3. Is cloud sync across phones needed later? That's the point where a free-tier backend (with its limits) would come in.
+1. **Login:** Google only for now? Email login needs a domain (~₱600/yr) for a free SMTP sender.
+2. **Money:** confirm swaps and gifts only, no selling, for v1.
+3. **Shipping:** confirm meetups only for v1.
+4. **Testing setup:** is Docker Desktop available on your PC? Local Supabase and RLS tests (`supabase start`, `supabase test db`) need it; otherwise tests run against a separate free test project.
+5. **Moderation:** you're the moderator at first? Reports would land in a dashboard view you check.
+6. **Launch area:** which city goes first, so testers are actually near each other?

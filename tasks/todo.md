@@ -41,8 +41,42 @@
 - [ ] Backup to Drive, restore on a fresh install
 - [ ] Glow-up share image
 
+## Phase 5: Pa-ampon swap (plan: tasks/plan.md)
+
+### 5.0 Spikes
+- [ ] 5.0a Supabase + Google login in Expo Go — S
+- [ ] 5.0b Nearby query with ~1 km grid + distance buckets — S
+- [ ] **Checkpoint 5.0:** login works on phone, buckets only, human review of rules + open questions
+
+### 5.1 Accounts and Binhi Box
+- [ ] T1 Supabase project, client, migrations + RLS tests — M
+- [ ] T2 Sign in with Google + profile (area, 18+, consent) — M
+- [ ] T3 Binhi Box: my listings with photos — M
+- [ ] T4 Offer from My Garden shortcut — S
+- [ ] T5 Other user's profile + public listings — S
+- [ ] **Checkpoint 5.1:** two accounts see each other's public listings; RLS tests pass
+
+### 5.2 Malapit sa Akin
+- [ ] T6 Location opt-in + server-snapped cell — S
+- [ ] T7 Nearby feed (radius, kind, name filters) — M
+- [ ] T8 Block and report — S
+- [ ] **Checkpoint 5.2:** correct buckets, no coordinates in any response, blocks work both ways
+
+### 5.3 Palitan
+- [ ] T9 Trade request + inbox — M
+- [ ] T10 Accept / decline / cancel + reservation — M
+- [ ] T11 Trade chat + safety card — M
+- [ ] T12 Mark done + thumbs-up + "Unang Palitan" badge — S
+- [ ] **Checkpoint 5.3:** full swap on two phones; closed beta in one city
+
+### 5.4 Before public launch
+- [ ] T13 Account and data deletion (in app + web page) — M
+- [ ] T14 Privacy policy, terms, safety tips, Play data-safety form — S
+- [ ] T15 Moderation: watch list, auto-hide, review view — M
+- [ ] T16 Push notifications (development build + Edge Function) — M
+
 ## Deferred (needs a server)
-- Cloud sync, Halamanan feed, Pa-ampon plant swap, leaderboards, 3D
+- Cloud sync, Halamanan feed, leaderboards, 3D
 
 ## Ongoing
 - [x] Care profiles for common PH plants (general guidance; review with an experienced grower)
