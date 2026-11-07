@@ -1,12 +1,16 @@
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ScreenHeader } from '@/components/ScreenHeader';
-import { Card, Chip, Icon, ProgressBar, SectionLabel, type IconName } from '@/components/ui';
+import { Button, Card, Chip, Icon, ProgressBar, SectionLabel, type IconName } from '@/components/ui';
 import { getStreak, ownedBadges, totalXp } from '@/db/game';
 import { getSettings, saveSettings, type Settings } from '@/db/settings';
 import { BADGES } from '@/lib/game/badges';
 import { levelProgress, type Persona } from '@/lib/game/xp';
 import { ensureNotificationPermission, scheduleDailyReminder } from '@/lib/notifications';
+import { exportBackup } from '@/lib/backup';
+import { pickAndRestore } from '@/lib/restoreFlow';
 import { useFocusData } from '@/lib/useFocusData';
 import { colors, radius, space, type } from '@/theme';
 
@@ -50,7 +54,9 @@ function Stepper({ label, onMinus, onPlus }: { label: string; onMinus: () => voi
 }
 
 export default function Profile() {
+  const router = useRouter();
   const { data, reload, db } = useFocusData(load);
+  const [busy, setBusy] = useState<'backup' | 'restore' | null>(null);
   if (!data) return <SafeAreaView style={styles.safe} />;
   const { settings, level, streak, owned } = data;
 
@@ -69,6 +75,28 @@ export default function Profile() {
       return;
     }
     await update(patch);
+  }
+
+  async function backUp() {
+    setBusy('backup');
+    try {
+      await exportBackup(db);
+      await update({ lastBackupAt: new Date().toISOString() });
+    } catch {
+      Alert.alert('Hindi ma-backup', 'Could not create the backup. Check that your phone has free storage.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function restore() {
+    setBusy('restore');
+    const restored = await pickAndRestore(db);
+    setBusy(null);
+    if (restored) {
+      Alert.alert('Restored!', 'Your garden is back.');
+      router.navigate('/today');
+    }
   }
 
   async function toggleReminder(on: boolean) {
@@ -168,6 +196,14 @@ export default function Profile() {
             {settings.reminderEnabled ? (
               <Stepper label={formatTime(settings.reminderHour, settings.reminderMinute)} onMinus={() => shiftTime(-15)} onPlus={() => shiftTime(15)} />
             ) : null}
+            <Pressable onPress={() => router.push('/location')} accessibilityRole="button" accessibilityLabel="Weather location">
+              <Row
+                icon="partly-sunny-outline"
+                title="Weather location"
+                body={settings.location ? settings.location.name : 'Not set. Add it for rain and heat tips.'}
+                right={<Icon name="chevron-forward" size={20} color={colors.textFaint} />}
+              />
+            </Pressable>
             <Row
               icon="layers-outline"
               title="Ghost overlay"
@@ -182,10 +218,29 @@ export default function Profile() {
             />
           </Card>
 
+          <SectionLabel>Backup</SectionLabel>
+          <Card style={{ gap: space.md }}>
+            <Text style={type.small}>
+              {settings.lastBackupAt
+                ? `Last backup: ${new Date(settings.lastBackupAt).toLocaleDateString('en-PH', { dateStyle: 'medium' })}.`
+                : 'No backup yet.'}{' '}
+              Save a backup to Google Drive or Files so you can restore your garden on a new phone.
+            </Text>
+            <Button label="Back up now" icon="cloud-upload-outline" onPress={backUp} loading={busy === 'backup'} disabled={busy !== null} />
+            <Button
+              label="Restore from backup"
+              icon="cloud-download-outline"
+              variant="secondary"
+              onPress={restore}
+              loading={busy === 'restore'}
+              disabled={busy !== null}
+            />
+          </Card>
+
           <SectionLabel>About</SectionLabel>
           <Text style={type.small}>
             Titanim keeps everything on this phone. Care tips are general guidance, not guarantees. Extra species search
-            uses GBIF (gbif.org), an open biodiversity database.
+            uses GBIF (gbif.org), an open biodiversity database. Weather data by Open-Meteo.com.
           </Text>
         </View>
       </ScrollView>

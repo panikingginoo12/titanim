@@ -5,6 +5,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, Icon } from '@/components/ui';
 import { saveSettings } from '@/db/settings';
+import { pickAndRestore } from '@/lib/restoreFlow';
 import type { Persona } from '@/lib/game/xp';
 import { colors, radius, space, type } from '@/theme';
 
@@ -19,6 +20,10 @@ export default function Onboarding() {
   const [name, setName] = useState('');
   const [persona, setPersona] = useState<Persona>('plantita');
   const [saving, setSaving] = useState(false);
+
+  async function restore() {
+    if (await pickAndRestore(db)) router.replace('/today');
+  }
 
   async function start() {
     setSaving(true);
@@ -80,6 +85,7 @@ export default function Onboarding() {
           </Card>
 
           <Button label="Simulan na!" icon="arrow-forward" onPress={start} loading={saving} style={{ marginTop: space.lg }} />
+          <Button label="May backup ka? Restore it" variant="ghost" icon="cloud-download-outline" onPress={restore} disabled={saving} />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
