@@ -12,15 +12,21 @@ Everything runs on the phone: no backend, no paid APIs, ₱0 running cost.
 - **Daily quests**: water, photo, fertilize, inspect leaves, rotate, mist — generated on the phone from each plant's care guide and history.
 - **Game layer**: XP and levels (Baguhan → Plantito/Plantita → Tito/Tita ng Halaman → Hari/Reyna ng Halamanan), Dilig streaks with a weekly streak freeze, and badges.
 - **Daily reminder**: a local notification scheduled by the phone itself.
+- **Weather-aware quests**: set your city and outdoor plants skip watering when rain is coming, get a protect-the-pot quest on windy or stormy days, and water a day earlier in the heat. Weather by [Open-Meteo](https://open-meteo.com).
+- **Identify a plant**: snap or pick a photo and get the top 3 matches from [Pl@ntNet](https://plantnet.org), 5 per phone per day.
+- **Glow-up**: before/after slider (Day 1 vs today), auto-playing growth slideshow, and a share card.
+- **Backup and restore**: one zip with your plants, quests, XP and photos, saved anywhere through the share sheet.
 
 ## Run it
 
 Requires Node.js 20 or newer.
 
 ```sh
-npm install
+pnpm install
 npx expo start
 ```
+
+To enable plant identification, copy `.env.example` to `.env.local` and add a free API key from [my.plantnet.org](https://my.plantnet.org).
 
 Scan the QR code with Expo Go on an Android phone (Expo Go must support SDK 58), or press `a` for an Android emulator.
 

@@ -1,9 +1,9 @@
 # Titanim — To-do (₱0 build)
 
 ## Phase 0: Spikes
-- [ ] 0.1 Free API spike — GBIF response shape checked; Pl@ntNet and Open-Meteo still to test
+- [x] 0.1 Free API spike — GBIF, Open-Meteo geocoding and Pl@ntNet response formats checked
 - [ ] 0.2 Camera + local photo storage on a real phone (photo size, airplane mode)
-- [ ] **Checkpoint 0:** run on a real Android phone
+- [x] **Checkpoint 0:** runs on a real Android phone (Expo Go)
 
 ## Phase 1: Foundation
 - [x] 1 Scaffold (Expo SDK 58, Expo Router), local SQLite with migrations, onboarding
@@ -28,11 +28,18 @@
 - [ ] **Checkpoint 3 (MVP):** APK to testers
 
 ## Phase 4: Post-MVP (still ₱0)
-- [ ] 14 Weather-aware quests (Open-Meteo)
-- [ ] 15 Snap-to-identify (Pl@ntNet, per-device cap)
-- [ ] 16 Before–after slider + growth slideshow
+- [x] 14 Weather-aware quests (Open-Meteo)
+- [x] 15 Snap-to-identify (Pl@ntNet, 5 per phone per day; needs API key in .env.local)
+- [x] 16 Before–after slider, growth slideshow, share card
 - [x] 17 Plant moods
-- [ ] 18 Backup and restore (zip via share sheet)
+- [x] 18 Backup and restore (zip via share sheet; restore also on onboarding)
+
+## Phase 4 checks on a phone
+- [ ] Daily reminder fires (Expo Go uses the default notification channel)
+- [ ] Weather card + rainy/windy quests with a real city
+- [ ] Identify with a real Pl@ntNet key
+- [ ] Backup to Drive, restore on a fresh install
+- [ ] Glow-up share image
 
 ## Deferred (needs a server)
 - Cloud sync, Halamanan feed, Pa-ampon plant swap, leaderboards, 3D
