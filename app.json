@@ -62,6 +62,20 @@
         {
           "color": "#2F5D3A"
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Titanim uses your approximate location for local weather tips for your plants."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Titanim lets you pick a plant photo to identify it.",
+          "cameraPermission": "Titanim uses the camera to take daily progress photos of your plants.",
+          "microphonePermission": false
+        }
       ]
     ],
     "experiments": {
