@@ -15,14 +15,25 @@ Notifications.setNotificationHandler({
   }),
 });
 
-async function ensureChannel() {
-  if (Platform.OS !== 'android') return;
-  await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
+let channelReady: Promise<string | undefined> | null = null;
+
+/**
+ * Creates the Android channel once. Returns its id, or undefined to fall back to the
+ * default channel: Expo Go on Android can reject channel creation with a native error,
+ * and a missing custom channel must never block the reminder.
+ */
+function ensureChannel(): Promise<string | undefined> {
+  if (Platform.OS !== 'android') return Promise.resolve(undefined);
+  channelReady ??= Notifications.setNotificationChannelAsync(CHANNEL_ID, {
     name: 'Daily quests',
     // Re-exported via `export *`, which eslint-plugin-import cannot follow; tsc checks it.
     // eslint-disable-next-line import/namespace
     importance: Notifications.AndroidImportance.DEFAULT,
-  });
+  }).then(
+    () => CHANNEL_ID,
+    () => undefined,
+  );
+  return channelReady;
 }
 
 /** Asks for permission if needed. Returns whether notifications are allowed. */
@@ -42,7 +53,7 @@ export async function ensureNotificationPermission(): Promise<boolean> {
 export async function scheduleDailyReminder(enabled: boolean, hour: number, minute: number, name: string): Promise<void> {
   await Notifications.cancelScheduledNotificationAsync(REMINDER_ID).catch(() => undefined);
   if (!enabled) return;
-  await ensureChannel();
+  const channelId = await ensureChannel();
   await Notifications.scheduleNotificationAsync({
     identifier: REMINDER_ID,
     content: {
@@ -54,7 +65,7 @@ export async function scheduleDailyReminder(enabled: boolean, hour: number, minu
       type: Notifications.SchedulableTriggerInputTypes.DAILY,
       hour,
       minute,
-      channelId: CHANNEL_ID,
+      ...(channelId ? { channelId } : {}),
     },
   });
 }

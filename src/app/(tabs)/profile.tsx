@@ -55,28 +55,44 @@ export default function Profile() {
   const { settings, level, streak, owned } = data;
 
   async function update(patch: Partial<Settings>) {
-    const next = { ...settings, ...patch };
     await saveSettings(db, patch);
-    if ('reminderEnabled' in patch || 'reminderHour' in patch || 'reminderMinute' in patch || 'name' in patch) {
-      await scheduleDailyReminder(next.reminderEnabled, next.reminderHour, next.reminderMinute, next.name);
-    }
     await reload();
   }
 
-  async function toggleReminder(on: boolean) {
-    if (on && !(await ensureNotificationPermission())) {
-      Alert.alert('Notifications are off', 'Allow notifications for Titanim in your phone settings to get daily reminders.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Open settings', onPress: () => Linking.openSettings() },
-      ]);
+  /** Saves reminder settings only after the phone accepted the schedule, so the switch never lies. */
+  async function updateReminder(patch: Pick<Partial<Settings>, 'reminderEnabled' | 'reminderHour' | 'reminderMinute'>) {
+    const next = { ...settings, ...patch };
+    try {
+      await scheduleDailyReminder(next.reminderEnabled, next.reminderHour, next.reminderMinute, next.name);
+    } catch {
+      Alert.alert('Hindi ma-set ang reminder', 'Your phone did not accept the daily reminder. Please try again.');
       return;
     }
-    await update({ reminderEnabled: on });
+    await update(patch);
+  }
+
+  async function toggleReminder(on: boolean) {
+    if (on) {
+      let allowed = false;
+      try {
+        allowed = await ensureNotificationPermission();
+      } catch {
+        allowed = false;
+      }
+      if (!allowed) {
+        Alert.alert('Notifications are off', 'Allow notifications for Titanim in your phone settings to get daily reminders.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open settings', onPress: () => Linking.openSettings() },
+        ]);
+        return;
+      }
+    }
+    await updateReminder({ reminderEnabled: on });
   }
 
   function shiftTime(minutes: number) {
     const total = (settings.reminderHour * 60 + settings.reminderMinute + minutes + 24 * 60) % (24 * 60);
-    void update({ reminderHour: Math.floor(total / 60), reminderMinute: total % 60 });
+    void updateReminder({ reminderHour: Math.floor(total / 60), reminderMinute: total % 60 });
   }
 
   return (
