@@ -113,6 +113,15 @@ export default function PlantDetail() {
         onPress={() => router.push({ pathname: '/plant/[id]/camera', params: { id: String(plantId) } })}
         style={{ marginTop: space.lg }}
       />
+      {photos.length >= 2 ? (
+        <Button
+          label="See the glow-up"
+          icon="sparkles-outline"
+          variant="secondary"
+          onPress={() => router.push({ pathname: '/plant/[id]/glowup', params: { id: String(plantId) } })}
+          style={{ marginTop: space.sm }}
+        />
+      ) : null}
 
       <SectionLabel>Care</SectionLabel>
       <Card style={{ gap: space.md }}>
