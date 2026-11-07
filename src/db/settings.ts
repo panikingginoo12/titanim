@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import type { Persona } from '@/lib/game/xp';
+import type { Forecast, Place } from '@/lib/weather';
 
 export type Settings = {
   onboarded: boolean;
@@ -10,6 +11,15 @@ export type Settings = {
   reminderMinute: number;
   ghostOverlay: boolean;
   saveToGallery: boolean;
+  /** Where weather comes from; null until the user sets it. */
+  location: Place | null;
+  /** Last forecast fetched, reused for the rest of that day. */
+  forecast: Forecast | null;
+  /** Snap-to-identify uses per day, to stay inside the shared free quota. */
+  identifyDay: string;
+  identifyCount: number;
+  /** ISO time of the last backup export, or '' if never. */
+  lastBackupAt: string;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -21,6 +31,11 @@ export const DEFAULT_SETTINGS: Settings = {
   reminderMinute: 0,
   ghostOverlay: true,
   saveToGallery: false,
+  location: null,
+  forecast: null,
+  identifyDay: '',
+  identifyCount: 0,
+  lastBackupAt: '',
 };
 
 export async function getSettings(db: SQLiteDatabase): Promise<Settings> {

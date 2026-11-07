@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { NO_WEATHER, type WeatherFlags } from '@/lib/weather';
 import { MAX_QUESTS_PER_PLANT, questsForPlant, type PlantState } from './engine';
 
 const day = '2026-10-17';
@@ -68,5 +69,30 @@ describe('questsForPlant', () => {
   it('uses generic care when the plant has no profile', () => {
     const p = plant({ last: { water: '2026-10-13', inspect: day } });
     expect(questsForPlant(p, undefined, day).map((q) => q.type)).toEqual(['water']);
+  });
+
+  describe('weather', () => {
+    const due = plant({ last: { water: '2026-10-10', inspect: day } });
+    const flags = (f: Partial<WeatherFlags>): WeatherFlags => ({ ...NO_WEATHER, ...f });
+
+    it('skips watering outdoor plants when rain is coming', () => {
+      expect(questsForPlant(due, care, day, flags({ rainy: true })).map((q) => q.type)).toEqual([]);
+    });
+
+    it('still waters indoor plants on rainy days', () => {
+      const indoor = { ...due, location: 'indoor' as const };
+      expect(questsForPlant(indoor, care, day, flags({ rainy: true })).map((q) => q.type)).toContain('water');
+    });
+
+    it('puts wind and heavy-rain protection first', () => {
+      const types = questsForPlant(due, care, day, flags({ windy: true, heavyRain: true, rainy: true })).map((q) => q.type);
+      expect(types).toEqual(['shelter', 'drain']);
+    });
+
+    it('waters a day earlier when it is hot', () => {
+      const almost = plant({ last: { water: '2026-10-11', inspect: day } }); // 6 of 7 days
+      expect(questsForPlant(almost, care, day).map((q) => q.type)).toEqual([]);
+      expect(questsForPlant(almost, care, day, flags({ hot: true })).map((q) => q.type)).toEqual(['water']);
+    });
   });
 });

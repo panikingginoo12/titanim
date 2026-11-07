@@ -4,6 +4,7 @@ import type { Day } from '@/lib/dates';
 import { questsForPlant, type CareType, type QuestType } from '@/lib/quests/engine';
 import { plantIdsWithPhotoOn } from './photos';
 import { lastCareDays, listPlants, logCare } from './plants';
+import { todayWeatherFlags } from './weather';
 
 export type QuestStatus = 'pending' | 'done' | 'skipped';
 
@@ -21,19 +22,24 @@ export type Quest = {
 /**
  * Creates today's quests for every plant that has none yet. Safe to call many times a day:
  * a plant's quests are fixed once made (so finishing one never adds another), and plants
- * added later in the day get theirs.
+ * added later in the day get theirs. On rainy days, outdoor plants are logged as watered.
  */
 export async function generateQuests(db: SQLiteDatabase, day: Day): Promise<void> {
-  const [plants, last, withPhoto, planned] = await Promise.all([
+  const [plants, last, withPhoto, planned, weather] = await Promise.all([
     listPlants(db),
     lastCareDays(db),
     plantIdsWithPhotoOn(db, day),
     db.getAllAsync<{ plant_id: number }>('SELECT DISTINCT plant_id FROM quests WHERE day = ?', day),
+    todayWeatherFlags(db),
   ]);
   const hasQuests = new Set(planned.map((r) => r.plant_id));
-  const plans = plants
-    .filter((p) => !hasQuests.has(p.id))
-    .flatMap((p) =>
+  const pending = plants.filter((p) => !hasQuests.has(p.id));
+  const rainWatered = weather.rainy
+    ? pending.filter((p) => p.location === 'outdoor' && last.get(p.id)?.water !== day)
+    : [];
+  for (const p of rainWatered) last.set(p.id, { ...last.get(p.id), water: day });
+
+  const plans = pending.flatMap((p) =>
     questsForPlant(
       {
         id: p.id,
@@ -45,10 +51,12 @@ export async function generateQuests(db: SQLiteDatabase, day: Day): Promise<void
       },
       getSpecies(p.speciesId)?.care,
       day,
+      weather,
     ),
   );
-  if (plans.length === 0) return;
+  if (plans.length === 0 && rainWatered.length === 0) return;
   await db.withTransactionAsync(async () => {
+    for (const p of rainWatered) await logCare(db, p.id, 'water', day);
     for (const q of plans) {
       await db.runAsync(
         'INSERT OR IGNORE INTO quests (day, plant_id, type, xp) VALUES (?, ?, ?, ?)',

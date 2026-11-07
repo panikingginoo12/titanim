@@ -3,6 +3,16 @@ import type { QuestType } from './engine';
 type Copy = { title: (name: string) => string; body: string; icon: string };
 
 export const QUEST_COPY: Record<QuestType, Copy> = {
+  shelter: {
+    title: (n) => `Protektahan si ${n} sa hangin`,
+    body: 'Strong winds today. Ipasok sa loob, ilipat sa silong, o itali ang paso para hindi tumumba.',
+    icon: 'umbrella-outline',
+  },
+  drain: {
+    title: (n) => `Silipin ang paso ni ${n}`,
+    body: 'Heavy rain today. Make sure the pot drains and isn\'t sitting in water, para hindi mabulok ang ugat.',
+    icon: 'rainy-outline',
+  },
   water: {
     title: (n) => `Diligan si ${n}`,
     body: 'Check the soil first. Kapag tuyo na ang ibabaw, diligan nang mabuti hanggang tumulo sa butas.',

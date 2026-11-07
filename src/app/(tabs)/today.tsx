@@ -7,11 +7,13 @@ import { PlantAvatar } from '@/components/PlantAvatar';
 import { QuestItem } from '@/components/QuestItem';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { StatsRow } from '@/components/StatsRow';
+import { WeatherCard } from '@/components/WeatherCard';
 import { Button, Card, EmptyState, ProgressBar } from '@/components/ui';
 import { getStreak, totalXp } from '@/db/game';
 import { listPlants } from '@/db/plants';
 import { completeQuest, generateQuests, listQuests, setQuestStatus, type Quest } from '@/db/quests';
 import { getSettings } from '@/db/settings';
+import { todayForecast } from '@/db/weather';
 import { formatDay, today } from '@/lib/dates';
 import { levelProgress } from '@/lib/game/xp';
 import { withRewards } from '@/lib/rewards';
@@ -27,6 +29,8 @@ function greeting(): string {
 
 async function load(db: Parameters<typeof generateQuests>[0]) {
   const day = today();
+  // Fetch (or reuse) today's forecast first so weather can shape the day's quests.
+  const forecast = await todayForecast(db, true);
   await generateQuests(db, day);
   const [quests, settings, xp, streak, plants] = await Promise.all([
     listQuests(db, day),
@@ -35,7 +39,7 @@ async function load(db: Parameters<typeof generateQuests>[0]) {
     getStreak(db),
     listPlants(db),
   ]);
-  return { day, quests, settings, level: levelProgress(xp, settings.persona), streak, plantCount: plants.length };
+  return { day, quests, settings, forecast, level: levelProgress(xp, settings.persona), streak, plantCount: plants.length };
 }
 
 function groupByPlant(quests: Quest[]) {
@@ -76,6 +80,9 @@ export default function Today() {
       <ScrollView contentContainerStyle={{ paddingBottom: space.xxl }}>
         <ScreenHeader title={`${greeting()}${name}!`} subtitle={formatDay(data.day)} />
         <StatsRow level={level} streak={streak} />
+        {plantCount > 0 ? (
+          <WeatherCard place={settings.location} forecast={data.forecast} onSetPlace={() => router.push('/location')} />
+        ) : null}
 
         {plantCount === 0 ? (
           <EmptyState
