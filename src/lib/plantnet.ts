@@ -1,3 +1,4 @@
+import { File } from 'expo-file-system';
 import { SPECIES, type Species } from '@/data/species';
 import { binomial } from './search';
 
@@ -69,8 +70,9 @@ export function plantNetKey(): string | undefined {
 
 export async function identifyPlant(imageUri: string, apiKey: string): Promise<Match[]> {
   const form = new FormData();
-  // React Native's FormData takes a file descriptor object for uploads.
-  form.append('images', { uri: imageUri, name: 'plant.jpg', type: 'image/jpeg' } as unknown as Blob);
+  // Expo's fetch (the global fetch since SDK 52+) uploads files from expo-file-system File
+  // objects. The old React Native `{ uri, name, type }` object is rejected before sending.
+  form.append('images', new File(imageUri));
   form.append('organs', 'auto');
 
   const controller = new AbortController();
@@ -82,7 +84,8 @@ export async function identifyPlant(imageUri: string, apiKey: string): Promise<M
       body: form,
       signal: controller.signal,
     });
-  } catch {
+  } catch (e) {
+    console.warn('[identify] request failed', e);
     throw new IdentifyError('network', 'Could not reach Pl@ntNet. Check your internet connection.');
   } finally {
     clearTimeout(timer);

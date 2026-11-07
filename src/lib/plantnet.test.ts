@@ -1,5 +1,16 @@
-import { describe, expect, it } from 'vitest';
-import { DAILY_IDENTIFY_LIMIT, identifyRemaining, matchBundled, parseMatches } from './plantnet';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { DAILY_IDENTIFY_LIMIT, IdentifyError, identifyPlant, identifyRemaining, matchBundled, parseMatches } from './plantnet';
+
+// expo-file-system's File is a native Blob; a plain Blob stands in for it here.
+vi.mock('expo-file-system', () => ({
+  File: class extends Blob {
+    uri: string;
+    constructor(uri: string) {
+      super([new Uint8Array([0xff, 0xd8])], { type: 'image/jpeg' });
+      this.uri = uri;
+    }
+  },
+}));
 
 describe('parseMatches', () => {
   const response = {
@@ -50,5 +61,31 @@ describe('identifyRemaining', () => {
     expect(identifyRemaining('2026-11-06', 5, '2026-11-07')).toBe(DAILY_IDENTIFY_LIMIT);
     expect(identifyRemaining('2026-11-07', 2, '2026-11-07')).toBe(DAILY_IDENTIFY_LIMIT - 2);
     expect(identifyRemaining('2026-11-07', 9, '2026-11-07')).toBe(0);
+  });
+});
+
+describe('identifyPlant', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('uploads the photo as a file Blob that Expo fetch can send', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ results: [{ score: 0.8, species: { scientificNameWithoutAuthor: 'Aloe vera' } }] }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const matches = await identifyPlant('file:///cache/plant.jpg', 'KEY');
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toContain('api-key=KEY');
+    const form = init.body as FormData;
+    expect(form.get('images')).toBeInstanceOf(Blob);
+    expect(form.get('organs')).toBe('auto');
+    expect(matches[0].species?.id).toBe('aloe-vera');
+  });
+
+  it('maps HTTP errors to friendly messages', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 404 })));
+    await expect(identifyPlant('file:///x.jpg', 'KEY')).rejects.toMatchObject({ kind: 'no-plant' });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 401 })));
+    await expect(identifyPlant('file:///x.jpg', 'KEY')).rejects.toBeInstanceOf(IdentifyError);
   });
 });
